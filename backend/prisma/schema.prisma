@@ -1,0 +1,216 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============= MULTI-TENANT MODELS =============
+
+model Company {
+  id        String   @id @default(cuid())
+  name      String
+  logo      String?
+  settings  Json     @default("{}")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  users         User[]
+  customers     Customer[]
+  documents     Document[]
+  invoices      Invoice[]
+  conversations Conversation[]
+  subscriptions Subscription[]
+
+  @@map("companies")
+}
+
+// ============= USER MODELS =============
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  firstName String
+  lastName  String
+  role      String   @default("user") // admin, user, viewer
+  avatar    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Multi-tenant
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  // Relations
+  conversations Conversation[]
+
+  @@index([companyId])
+  @@map("users")
+}
+
+// ============= CUSTOMER MODELS =============
+
+model Customer {
+  id         String   @id @default(cuid())
+  name       String
+  email      String
+  phone      String?
+  address    String?
+  city       String?
+  postalCode String?
+  notes      String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  // Multi-tenant
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  // Relations
+  invoices Invoice[]
+
+  @@index([companyId])
+  @@map("customers")
+}
+
+// ============= DOCUMENT MODELS =============
+
+model Document {
+  id       String   @id @default(cuid())
+  name     String
+  type     String   // pdf, docx, image, etc.
+  size     Int
+  url      String   // S3 URL
+  analysis String?  // JSON with analysis results
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Multi-tenant
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+  @@map("documents")
+}
+
+// ============= INVOICE/QUOTE MODELS =============
+
+model Invoice {
+  id        String   @id @default(cuid())
+  number    String   @unique
+  type      String   @default("invoice") // invoice, quote
+  items     Json     // Array of invoice items
+  total     Float
+  tax       Float    @default(0)
+  status    String   @default("draft") // draft, sent, paid, overdue
+  dueDate   DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+  @@index([customerId])
+  @@map("invoices")
+}
+
+// ============= CHAT MODELS =============
+
+model Conversation {
+  id        String   @id @default(cuid())
+  messages  Message[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([companyId])
+  @@map("conversations")
+}
+
+model Message {
+  id             String   @id @default(cuid())
+  role           String   // user, assistant
+  content        String   @db.Text
+  tokens         Int?     // Token usage
+  createdAt      DateTime @default(now())
+
+  // Relations
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId])
+  @@map("messages")
+}
+
+// ============= SUBSCRIPTION MODELS =============
+
+model Subscription {
+  id                    String   @id @default(cuid())
+  planId                String
+  status                String   @default("active") // active, cancelled, expired
+  stripeSubscriptionId  String?  @unique
+  stripeCustomerId      String?
+  startDate             DateTime @default(now())
+  endDate               DateTime?
+  cancelledAt           DateTime?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  // Relations
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+  @@map("subscriptions")
+}
+
+// ============= PAYMENT MODELS =============
+
+model Payment {
+  id                 String   @id @default(cuid())
+  amount             Float
+  currency           String   @default("EUR")
+  status             String   @default("pending") // pending, succeeded, failed
+  stripePaymentId    String?  @unique
+  invoiceId          String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@map("payments")
+}
+
+// ============= AUDIT LOG =============
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  action    String
+  entity    String
+  entityId  String
+  userId    String?
+  companyId String?
+  changes   Json?
+  createdAt DateTime @default(now())
+
+  @@index([companyId])
+  @@index([userId])
+  @@map("audit_logs")
+}
