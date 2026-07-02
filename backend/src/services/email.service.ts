@@ -1,24 +1,6 @@
-import nodemailer from 'nodemailer';
 import logger from '../utils/logger';
 
-const hasSmtpConfig = Boolean(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS);
-const transporter = hasSmtpConfig
-  ? nodemailer.createTransport({
-      host: process.env.SMTP_HOST,
-      port: parseInt(process.env.SMTP_PORT || '587'),
-      secure: process.env.SMTP_SECURE === 'true', // true pour 465, false pour autres ports
-      auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS,
-      },
-    })
-  : null;
-
 export class EmailService {
-  private isDemoMode(): boolean {
-    return !hasSmtpConfig || !transporter;
-  }
-
   /**
    * Envoyer un email
    */
@@ -30,28 +12,11 @@ export class EmailService {
     attachments?: Array<{ filename: string; path?: string; content?: Buffer }>
   ): Promise<void> {
     try {
-      if (this.isDemoMode()) {
-        logger.info(`Demo mode: email not sent to ${to} with subject ${subject}`);
-        return;
-      }
-
-      await transporter!.sendMail({
-        from: process.env.SMTP_FROM || 'noreply@saas-pme.com',
-        to,
-        subject,
-        text: text || '',
-        html,
-        attachments,
-      });
-
-      logger.info(`Email sent to ${to}`);
+      logger.info(
+        `Local email stub: to=${to}, subject=${subject}, htmlLength=${html.length}, textLength=${text?.length || 0}, attachments=${attachments?.length || 0}`
+      );
     } catch (error) {
-      logger.error('Email sending error:', error);
-      if (this.isDemoMode()) {
-        return;
-      }
-
-      throw new Error('Failed to send email');
+      logger.error('Local email error:', error);
     }
   }
 
