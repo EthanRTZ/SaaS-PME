@@ -1,3 +1,5 @@
+# PME Assistant - Application SaaS complète
+
 ╔══════════════════════════════════════════════════════════════════════════════╗
 ║                                                                              ║
 ║  ✅ PME ASSISTANT - APPLICATION SAAS COMPLÈTE CRÉÉE AVEC SUCCÈS!             ║
@@ -73,7 +75,7 @@ SaaS-PME/
 │
 ├── docker/                   ← Configuration Docker
 │   ├── docker-compose.yml  ← Tous les services
-│   ├── Dockerfile.*        ← Frontend et Backend
+│   ├── Dockerfile.frontend et Dockerfile.backend  ← Frontend et Backend
 │   ├── nginx.conf          ← Reverse proxy
 │   └── start-*.sh          ← Scripts de démarrage
 │
@@ -135,22 +137,23 @@ SaaS-PME/
 1️⃣  Avec Docker (5 minutes):
     cd SaaS-PME
     npm run docker:up
-    
+
     → Frontend: http://localhost:3000
     → API: http://localhost:3001
 
 2️⃣  Development local:
     npm install
     npm run dev
-    
+
     → Lance backend ET frontend en parallèle
 
 3️⃣  Configuration (IMPORTANT):
     Créer .env.local avec:
-    - OPENAI_API_KEY (https://platform.openai.com/api-keys)
-    - AWS credentials (https://aws.amazon.com)
-    - STRIPE_SECRET_KEY (https://stripe.com)
-    - DATABASE_URL (PostgreSQL)
+
+- OPENAI_API_KEY ([platform.openai.com/api-keys](https://platform.openai.com/api-keys))
+- AWS credentials ([aws.amazon.com](https://aws.amazon.com))
+- STRIPE_SECRET_KEY ([stripe.com](https://stripe.com))
+- DATABASE_URL (PostgreSQL)
 
 📚 DOCUMENTATION DISPONIBLE
 ═════════════════════════════════════════════════════════════════════════════

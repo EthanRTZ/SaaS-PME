@@ -1,11 +1,34 @@
 import { OpenAI } from 'openai';
 import logger from '../utils/logger';
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+const hasOpenAiKey = Boolean(process.env.OPENAI_API_KEY);
+const openai = hasOpenAiKey
+  ? new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY,
+    })
+  : null;
 
 export class AIService {
+  private static isDemoMode(): boolean {
+    return !hasOpenAiKey || !openai;
+  }
+
+  private static buildDemoEmail(subject: string, context: string, tone: string) {
+    return {
+      subject,
+      body: [
+        `Bonjour,`,
+        '',
+        `Voici une version brouillon de l'email (${tone}) en mode local.`,
+        '',
+        `Contexte: ${context}`,
+        '',
+        `Cordialement,`,
+        `PME Assistant`,
+      ].join('\n'),
+    };
+  }
+
   /**
    * Envoyer un message à OpenAI et obtenir une réponse
    */
@@ -15,6 +38,10 @@ export class AIService {
     conversationHistory?: Array<{ role: string; content: string }>
   ): Promise<string> {
     try {
+      if (this.isDemoMode()) {
+        return `Mode local: je n'ai pas encore d'accès à une API IA, mais voici une réponse de démonstration pour: ${message}`;
+      }
+
       const messages: Array<{ role: 'user' | 'assistant' | 'system'; content: string }> = [
         {
           role: 'system',
@@ -55,6 +82,10 @@ export class AIService {
       return content;
     } catch (error) {
       logger.error('OpenAI chat error:', error);
+      if (this.isDemoMode()) {
+        return `Mode local: réponse de secours pour ${message}`;
+      }
+
       throw new Error('Failed to process message with AI');
     }
   }
@@ -68,6 +99,10 @@ export class AIService {
     tone: 'formal' | 'friendly' | 'professional' = 'professional'
   ): Promise<{ subject: string; body: string }> {
     try {
+      if (this.isDemoMode()) {
+        return this.buildDemoEmail(subject, context, tone);
+      }
+
       const prompt = `Génère un email professionnel avec les paramètres suivants:
       
 Sujet: ${subject}
@@ -107,6 +142,10 @@ Réponds UNIQUEMENT au format JSON suivant (sans code block):
       };
     } catch (error) {
       logger.error('Email generation error:', error);
+      if (this.isDemoMode()) {
+        return this.buildDemoEmail(subject, context, tone);
+      }
+
       throw new Error('Failed to generate email');
     }
   }
@@ -119,6 +158,30 @@ Réponds UNIQUEMENT au format JSON suivant (sans code block):
     analysisType: 'summary' | 'extraction' | 'sentiment' = 'summary'
   ): Promise<Record<string, any>> {
     try {
+      if (this.isDemoMode()) {
+        const excerpt = text.slice(0, 240).trim();
+
+        switch (analysisType) {
+          case 'summary':
+            return {
+              summary: excerpt ? `${excerpt}${text.length > 240 ? '...' : ''}` : 'Aucun texte à analyser en mode local.',
+            };
+          case 'extraction':
+            return {
+              keyPoints: excerpt ? ['Analyse locale sans API IA', 'Extraction à implémenter plus tard'] : [],
+              entities: {},
+              dates: [],
+              amounts: [],
+            };
+          case 'sentiment':
+            return {
+              sentiment: 'neutral',
+              confidence: 0.5,
+              explanation: 'Analyse locale en mode démo.',
+            };
+        }
+      }
+
       let prompt = '';
 
       switch (analysisType) {
@@ -180,6 +243,12 @@ Réponds en JSON:
       }
     } catch (error) {
       logger.error('Text analysis error:', error);
+      if (this.isDemoMode()) {
+        return {
+          summary: 'Analyse locale indisponible.',
+        };
+      }
+
       throw new Error('Failed to analyze text');
     }
   }
@@ -193,6 +262,19 @@ Réponds en JSON:
     items: Array<{ description: string; quantity: number; unitPrice: number }>
   ): Promise<string> {
     try {
+      if (this.isDemoMode()) {
+        const invoiceLines = items
+          .map(
+            (item, i) =>
+              `${i + 1}. ${item.description}: ${item.quantity} x ${item.unitPrice}€ = ${
+                item.quantity * item.unitPrice
+              }€`
+          )
+          .join('\n');
+
+        return `FACTURE BROUILLON\nEntreprise: ${companyName}\nClient: ${customerName}\n${invoiceLines}`;
+      }
+
       const itemsText = items
         .map(
           (item, i) =>
@@ -223,6 +305,10 @@ Inclure: numéro de facture, date, conditions de paiement, etc.`,
       return response.choices[0]?.message?.content || '';
     } catch (error) {
       logger.error('Invoice generation error:', error);
+      if (this.isDemoMode()) {
+        return `FACTURE BROUILLON\nEntreprise: ${companyName}\nClient: ${customerName}`;
+      }
+
       throw new Error('Failed to generate invoice');
     }
   }

@@ -13,7 +13,6 @@ Plateforme d'intelligence artificielle destinée aux petites et moyennes entrepr
 - **Multi-tenant**: Gestion sécurisée de plusieurs entreprises
 - **Authentification**: Système d'authentification robuste avec JWT
 - **Gestion des Rôles**: Contrôle d'accès basé sur les rôles
-
 ## 🏗️ Architecture
 
 ```

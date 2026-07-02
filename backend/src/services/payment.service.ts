@@ -1,11 +1,18 @@
 import Stripe from 'stripe';
 import logger from '../utils/logger';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
-  apiVersion: '2023-10-16',
-});
+const hasStripeKey = Boolean(process.env.STRIPE_SECRET_KEY);
+const stripe = hasStripeKey
+  ? new Stripe(process.env.STRIPE_SECRET_KEY || '', {
+      apiVersion: '2023-10-16',
+    })
+  : null;
 
 export class PaymentService {
+  private isDemoMode(): boolean {
+    return !hasStripeKey || !stripe;
+  }
+
   /**
    * Créer une session de checkout Stripe
    */
@@ -17,8 +24,16 @@ export class PaymentService {
     cancelUrl: string
   ): Promise<{ sessionId: string; url: string }> {
     try {
+      if (this.isDemoMode()) {
+        const sessionId = `demo_session_${Date.now()}`;
+        return {
+          sessionId,
+          url: `${successUrl}${successUrl.includes('?') ? '&' : '?'}demoSession=${sessionId}`,
+        };
+      }
+
       // À adapter selon votre configuration Stripe
-      const session = await stripe.checkout.sessions.create({
+      const session = await stripe!.checkout.sessions.create({
         payment_method_types: ['card'],
         line_items: [
           {
@@ -42,6 +57,14 @@ export class PaymentService {
       };
     } catch (error) {
       logger.error('Stripe checkout error:', error);
+      if (this.isDemoMode()) {
+        const sessionId = `demo_session_${Date.now()}`;
+        return {
+          sessionId,
+          url: `${successUrl}${successUrl.includes('?') ? '&' : '?'}demoSession=${sessionId}`,
+        };
+      }
+
       throw new Error('Failed to create checkout session');
     }
   }
@@ -51,9 +74,25 @@ export class PaymentService {
    */
   async getSubscription(subscriptionId: string): Promise<Stripe.Subscription> {
     try {
-      return await stripe.subscriptions.retrieve(subscriptionId);
+      if (this.isDemoMode()) {
+        return {
+          id: subscriptionId,
+          object: 'subscription',
+          status: 'active',
+        } as Stripe.Subscription;
+      }
+
+      return await stripe!.subscriptions.retrieve(subscriptionId);
     } catch (error) {
       logger.error('Stripe subscription retrieval error:', error);
+      if (this.isDemoMode()) {
+        return {
+          id: subscriptionId,
+          object: 'subscription',
+          status: 'active',
+        } as Stripe.Subscription;
+      }
+
       throw new Error('Failed to retrieve subscription');
     }
   }
@@ -63,12 +102,21 @@ export class PaymentService {
    */
   async cancelSubscription(subscriptionId: string): Promise<void> {
     try {
-      await stripe.subscriptions.update(subscriptionId, {
+      if (this.isDemoMode()) {
+        logger.info(`Demo mode: subscription cancelled locally: ${subscriptionId}`);
+        return;
+      }
+
+      await stripe!.subscriptions.update(subscriptionId, {
         cancel_at_period_end: true,
       });
       logger.info(`Subscription cancelled: ${subscriptionId}`);
     } catch (error) {
       logger.error('Stripe cancellation error:', error);
+      if (this.isDemoMode()) {
+        return;
+      }
+
       throw new Error('Failed to cancel subscription');
     }
   }
@@ -91,13 +139,41 @@ export class PaymentService {
    */
   verifyWebhookSignature(body: string, signature: string): Stripe.Event {
     try {
-      return stripe.webhooks.constructEvent(
+      if (this.isDemoMode()) {
+        return {
+          id: 'demo_event',
+          object: 'event',
+          api_version: '2023-10-16',
+          created: Math.floor(Date.now() / 1000),
+          data: { object: {} },
+          livemode: false,
+          pending_webhooks: 0,
+          request: null,
+          type: 'checkout.session.completed',
+        } as Stripe.Event;
+      }
+
+      return stripe!.webhooks.constructEvent(
         body,
         signature,
         process.env.STRIPE_WEBHOOK_SECRET || ''
       );
     } catch (error) {
       logger.error('Webhook signature verification failed:', error);
+      if (this.isDemoMode()) {
+        return {
+          id: 'demo_event',
+          object: 'event',
+          api_version: '2023-10-16',
+          created: Math.floor(Date.now() / 1000),
+          data: { object: {} },
+          livemode: false,
+          pending_webhooks: 0,
+          request: null,
+          type: 'checkout.session.completed',
+        } as Stripe.Event;
+      }
+
       throw new Error('Invalid webhook signature');
     }
   }
@@ -110,12 +186,22 @@ export class PaymentService {
     items: Array<{ description: string; amount: number; quantity: number }>
   ): Promise<Stripe.Invoice> {
     try {
-      const invoice = await stripe.invoices.create({
+      if (this.isDemoMode()) {
+        return {
+          id: `demo_invoice_${Date.now()}`,
+          object: 'invoice',
+          customer: customerId,
+          status: 'draft',
+          hosted_invoice_url: null,
+        } as Stripe.Invoice;
+      }
+
+      const invoice = await stripe!.invoices.create({
         customer: customerId,
       });
 
       for (const item of items) {
-        await stripe.invoiceItems.create({
+        await stripe!.invoiceItems.create({
           customer: customerId,
           invoice: invoice.id,
           description: item.description,
@@ -124,9 +210,19 @@ export class PaymentService {
         });
       }
 
-      return await stripe.invoices.finalizeInvoice(invoice.id);
+      return await stripe!.invoices.finalizeInvoice(invoice.id);
     } catch (error) {
       logger.error('Invoice creation error:', error);
+      if (this.isDemoMode()) {
+        return {
+          id: `demo_invoice_${Date.now()}`,
+          object: 'invoice',
+          customer: customerId,
+          status: 'draft',
+          hosted_invoice_url: null,
+        } as Stripe.Invoice;
+      }
+
       throw new Error('Failed to create invoice');
     }
   }
